@@ -5,12 +5,10 @@
 
 (provide 
  @bitvector?           
- @bveq @bvslt @bvsle    
- @bvsgt @bvsge  
- @bvadd @bvsub @bvmul @bvsdiv @bvsrem                  
+ @bveq @bvslt @bvsle @bvsgt @bvsge @bvult @bvule @bvugt @bvuge
+ @bvadd @bvsub @bvmul @bvurem @bvudiv @bvsdiv @bvsrem @bvsmod                 
  @bvshl @bvashr @bvlshr
  @bvnot @bvand @bvor @bvxor
- @expt @bvsqrt @bvabs @bvsgn 
  current-bitwidth ignore-division-by-0)
 
 (define ignore-division-by-0
@@ -23,9 +21,29 @@
                       (raise-argument-error 'current-bitwidth "positive integer" bw))
                     bw)))
 
-(define (num/cast v)
+(define (sfinitize num) 
+  (match num
+    [(? integer? v) 
+     (let* ([bitwidth (current-bitwidth)]
+              [mask (arithmetic-shift -1 bitwidth)]
+              [masked (bitwise-and (bitwise-not mask) v)])
+         (if (bitwise-bit-set? masked (- bitwidth 1))
+             (bitwise-ior mask masked)  
+             masked))]
+    [_ num]))
+
+(define (ufinitize num) 
+  (match num
+    [(? integer? v) 
+     (let* ([bitwidth (current-bitwidth)]
+            [mask (arithmetic-shift -1 bitwidth)]
+            [masked (bitwise-and (bitwise-not mask) v)])
+       masked)]
+    [_ num]))
+
+(define (bv/cast v)
   (match v
-    [(? number?) (values #t v)]
+    [(? integer?) (values #t (sfinitize v))]
     [(term _ (== @bitvector?)) (values #t v)]
     [(union : [g (and (app type-of (== @bitvector?)) u)] _ ...) (values g u)]
     [_ (values #f v)]))
@@ -40,14 +58,10 @@
              [(a (expression (== ite) a x _)) x]
              [(a (expression (== ite) (expression (== !) a) _ x)) x]
              [((expression (== !) a) (expression (== ite) a _ x)) x]
-             ;[(a (expression (== ite) b x y))
-             ; (match* ((simplify-ite a x) (simplify-ite a y))
-             ;   [((== x) (== y)) v]
-             ;   [(m n) (ite b m n)])]
              [(_ _) v])]))
 
-(define (num/compress force? ps) ; force? is ignored since numbers are immutable and therefore always merged
-  ;(printf "num/compress ~a ~a\n" (length ps) ps)
+(define (bv/compress force? ps) ; force? is ignored since numbers are immutable and therefore always merged
+  ;(printf "bv/compress ~a ~a\n" (length ps) ps)
   (match ps
     [(list _) ps]
     [(list (cons g a) (cons (expression (== !) g) b)) (list (cons #t (ite g a b)))]
@@ -68,15 +82,15 @@
                      x
                      (apply @bvor (ite a x 0) (map (curryr ite 0) b y)))))]))
 
-(define (num/eq? x y) (@bveq x y))
+(define (bv/eq? x y) (@bveq x y))
   
 (define-primitive-type @bitvector? 
-  #:pred     (instance-of? number? @bitvector?) 
+  #:pred     (instance-of? integer? @bitvector?) 
   #:least-common-supertype (lambda (t) (if (eq? t @bitvector?) @bitvector? @any?))
-  #:eq?      num/eq?
-  #:equal?   num/eq?
-  #:cast     num/cast
-  #:compress num/compress)
+  #:eq?      bv/eq?
+  #:equal?   bv/eq?
+  #:cast     bv/cast
+  #:compress bv/compress)
 
 (define binary-predicate-type (op/-> (@bitvector? @bitvector?) @boolean?))
 (define nary-type (op/-> (#:rest @bitvector?) @bitvector?))
@@ -89,284 +103,335 @@
       (expression op y x)))
 
 (define-op @bveq  
-  #:name '= 
+  #:name 'bveq 
   #:type binary-predicate-type
-  #:op   (lambda (x y)
-           (match* (x y)
-             [((? number?) (? number?)) (= x y)]
-             [((? number?) (? term?)) (expression @bveq x y)]
-             [((? term?) (? number?)) (expression @bveq y x)]
-             [(_ _) (or (equal? x y) (sort/expression @bveq x y))])))
-  
-(define-op @bvslt  #:name '<  #:type binary-predicate-type #:op (lambda (x y) (cmp @bvslt < x y)))
-(define-op @bvsle #:name '<= #:type binary-predicate-type #:op (lambda (x y) (cmp @bvsle <= x y)))
-(define-op @bvsgt  #:name '>  #:type binary-predicate-type #:op (lambda (x y) (@bvslt y x)))
-(define-op @bvsge #:name '>= #:type binary-predicate-type #:op (lambda (x y) (@bvsle y x)))
+  #:op   (lambda (a b)
+           (match* ((sfinitize a) (sfinitize b))
+             [((? integer? x) (? integer? y)) (= x y)]
+             [((? integer? x) (? term? y)) (expression @bveq x y)]
+             [((? term? x) (? integer? y)) (expression @bveq y x)]
+             [(x y) (or (equal? x y) (sort/expression @bveq x y))])))
 
-(define-syntax-rule (cmp @op num/op x y) 
-  (match* (x y)
-    [((? number?) (? number?)) (num/op x y)]
-    [((? number?) (expression (== ite) b (? number? t) (? number? f))) (merge b (num/op x t) (num/op x f))] 
-    [((expression (== ite) b (? number? t) (? number? f)) (? number?)) (merge b (num/op t y) (num/op f y))]
-    [(_ _) (let ([z (@bvsub y x)])
-             (if (number? z) 
-                 (num/op 0 z) 
-                 (expression @op x y)))]))
+(define-op @bvult #:name 'bvult #:type binary-predicate-type #:op (lambda (x y) (bvcmp @bvult <  #t ufinitize x y)))
+(define-op @bvule #:name 'bvule #:type binary-predicate-type #:op (lambda (x y) (bvcmp @bvule <= #f ufinitize x y)))
+(define-op @bvslt #:name 'bvslt #:type binary-predicate-type #:op (lambda (x y) (bvcmp @bvslt <  #t sfinitize x y)))
+(define-op @bvsle #:name 'bvsle #:type binary-predicate-type #:op (lambda (x y) (bvcmp @bvsle <= #f sfinitize x y)))
+(define-op @bvugt #:name 'bvugt #:type binary-predicate-type #:op (lambda (x y) (@bvult y x)))
+(define-op @bvuge #:name 'bvuge #:type binary-predicate-type #:op (lambda (x y) (@bvule y x)))
+(define-op @bvsgt #:name 'bvsgt #:type binary-predicate-type #:op (lambda (x y) (@bvslt y x)))
+(define-op @bvsge #:name 'bvsge #:type binary-predicate-type #:op (lambda (x y) (@bvsle y x)))
 
-(define (op-match op x)
-  (if (expression? x op) (term-child x) (list x)))
+(define (bvcmp @op op strict? finitize a b)
+  (match* ((finitize a) (finitize b))
+    [(x x) (not strict?)]
+    [((? integer? x) (? integer? y)) (op x y)]
+    [((? integer? x) (expression (== ite) b (? integer? t) (? integer? f))) 
+     (merge b (op x (finitize t)) (op x (finitize f)))] 
+    [((expression (== ite) b (? integer? t) (? integer? f)) (? integer? y))
+     (merge b (op (finitize t) y) (op (finitize f) y))]
+    [(x y) (expression @op x y)]))
 
-(define-op @bvadd 
-  #:name '+ 
-  #:type nary-type 
-  #:op (case-lambda [(a b) (binary:+/* @bvadd @bvadd-info a b)] 
-                    [args  (nary:+/*   @bvadd @bvadd-info args)]))
-           
-(define-op @bvmul 
-  #:name '* 
-  #:type nary-type 
-  #:op (case-lambda [(a b) (binary:+/* @bvmul @bvmul-info a b)] 
-                    [args  (nary:+/*   @bvmul @bvmul-info args)]))
-
-(define-op @bvsub 
-  #:name '- 
-  #:type nary-type 
-  #:op (case-lambda [(x) (match x 
-                           [(? number?) (- x)]
-                           [(expression (== @bvmul) -1 y) y] 
-                           [_ (@bvmul -1 x)])] 
-                    [(x . y) (apply @bvadd x (map @bvsub y))]))                  
-
-(define (non-zero? x)
-  (if (number? x)
-      (not (equal? x 0))
-      (! (@bveq x 0)))) 
-
-(define-op  @bvsrem 
-  #:name '% 
-  #:type binary-type
-  #:pre  (lambda (x y) (non-zero? y))
-  #:op   (match-lambda** [(x 0) (if (ignore-division-by-0) 
-                                    (expression @bvsrem x 0)
-                                    (error '@bvsrem "% undefined for 0"))]
-                         [((? integer? x) (? integer? y)) (remainder x y)]
-                         [(x 1) 0]
-                         [(x x) 0]
-                         [((or (? integer? x) (? term? x)) 
-                           (or (? integer? y) (? term? y))) (expression @bvsrem x y)]))
-
-(define-op  @bvsdiv 
-  #:name 'div 
-  #:type binary-type
-  #:pre  (op-pre @bvsrem)
-  #:op   (match-lambda** [(x 0) (if (ignore-division-by-0) 
-                                    (expression @bvsdiv x 0)
-                                    (error '@bvsdiv "/ undefined for 0"))]
-                         [((? integer? x) (? integer? y)) (quotient x y)]
-                         [(x 1) x]
-                         [(x x) 1]  
-                         [((or (? integer? x) (? term? x)) 
-                           (or (? integer? y) (? term? y))) (expression @bvsdiv x y)]))
-
-(define-op  @expt 
-  #:name 'expt 
-  #:type binary-type
-  #:pre  (lambda (x y) (=> (@bveq x 0) (@bvsge y 0)))
-  #:op   (match-lambda** [((? number? x) (? number? y)) (expt x y)]
-                         [(_ 0) 1]
-                         [(0 _) 0]
-                         [(x 1) x]
-                         [((expression (== @expt) x y) z) (@expt x (@bvmul y z))]
-                         [(x y) (expression @expt x y)]))
-
-(define (mask x)
-  (bitwise-and x (bitwise-not (arithmetic-shift -1 (current-bitwidth)))))
-
-(define-op @bvshl
-  #:name '<<
-  #:type binary-type
-  #:op   (match-lambda** [(x 0) x]
-                         [(0 _) 0]
-                         [((? number? x) (? number? y)) 
-                          (if (> y 0) (arithmetic-shift x y) 0)]
-                         [(x y) (expression @bvshl x y)]))
-
-(define-op @bvlshr
-  #:name '>>>
-  #:type binary-type
-  #:op   (match-lambda** [(x 0) x]
-                         [(0 _) 0]
-                         [((? number? x) (? number? y)) 
-                          (if (< y 0) 0 (arithmetic-shift (mask x) (- y)))]
-                         [(x y) (expression @bvlshr x y)]))
-
-
-(define-op @bvashr
-  #:name '>>
-  #:type binary-type
-  #:op   (match-lambda** [(x 0) x]
-                         [(0 _) 0]
-                         [(-1 _) -1]
-                         [((? number? x) (? number? y)) 
-                          (cond [(> y 0) (arithmetic-shift x (- y))]
-                                [(> x 0) 0]
-                                [else -1])]
-                         [(x y) (expression @bvashr x y)]))
-
-(define-not @bvnot 'bitwise-not @bitvector? number? bitwise-not)
-(define-and @bvand 'bitwise-and @bvor @bvnot -1 @bitvector? number? bitwise-and)
-(define-or  @bvor 'bitwise-ior @bvand @bvnot 0 @bitvector? number? bitwise-ior)
-
-(define-op @bvxor 
-  #:name 'bitwise-xor 
-  #:type nary-type 
-  #:op   (case-lambda [() 0]
-                      [(x) x]
-                      [(x y) (match* (x y)
-                               [((? number?) (? number?)) (bitwise-xor x y)]
-                               [(_ (== x)) 0]
-                               [(_ 0) x]
-                               [(0 _) y]
-                               [(_ -1) (@bvnot x)]
-                               [(-1 _) (@bvnot y)]
-                               [(_ (expression (== @bvnot) (== x))) -1]
-                               [((expression (== @bvnot) (== y)) _) -1]
-                               [((? term?) (? number?)) (expression @bvxor y x)]
-                               [((? number?) (? term?)) (expression @bvxor x y)]
-                               [(_ _) (sort/expression @bvxor x y)])]
-                      [args (let-values ([(syms vals) (partition term? args)])
-                              (if (null? vals) 
-                                  (apply expression @bvxor (sort syms term<?))
-                                  (let ([val (apply bitwise-xor vals)])
-                                    (match syms
-                                      [(list) val]
-                                      [(list n) (@bvxor val n)]
-                                      [_        (apply expression @bvxor val (sort syms term<?))]))))]))
-                    
-(define-syntax-rule (define-idempotent-unary-op id name racket-op)
-  (define-op id 
-    #:name name 
-    #:type unary-type 
-    #:op (match-lambda [(? number? x) (racket-op x)]
-                       [(and (expression (== id) y) x) x]
-                       [x (expression id x)])))
-                         
-(define-idempotent-unary-op @bvabs 'abs abs)
-(define-idempotent-unary-op @bvsgn 'sgn sgn)
-
-(define-op @bvsqrt
-  #:name 'sqrt
+(define-op @bvneg
+  #:name 'bvneg
   #:type unary-type
   #:op
-  (match-lambda
-    [(? number? x) (sqrt (max 0 x))]
-    [(expression (== @bvmul) x x) (@bvabs x)]
-    [(expression (== @expt) x (and (? integer?) (? even?) k)) (@expt (@bvabs x) (/ k 2))]
-    [x (define n (arithmetic-shift (current-bitwidth) -1))
-       (let loop ([res 0] [add (arithmetic-shift 1 (sub1 n))] [i n])
-         (if (<= i 0) 
-             res
-             (let ([tmp (@bvor res add)])
-               (loop (merge (@bvsge x (@bvmul tmp tmp)) tmp res) 
-                     (arithmetic-shift add -1) 
-                     (sub1 i)))))]))
-                
+  (lambda (a)
+    (match (sfinitize a)
+      [(? integer? x) (sfinitize (- x))]
+      [(expression (== @bvneg) x) x]
+      [x (expression @bvneg x)])))
+
+(define-op @bvadd 
+  #:name 'bvadd 
+  #:type nary-type 
+  #:op (commutative-associative-nary-operator @bvadd + simplify-bvadd 0))
+
+; Simplifies the addition of a and b, if possible. Returns #f if no simplification is possible.
+(define (simplify-bvadd a b)
+  (match* (a b)
+    [((? integer? x) (? integer? y)) (sfinitize (+ (sfinitize x) (sfinitize y)))]
+    [(0 y) (sfinitize y)]
+    [(x 0) (sfinitize x)]
+    [(x (expression (== @bvneg) x)) 0]
+    [((expression (== @bvneg) x) x) 0]
+    [(x (expression (== @bvadd) u ... (expression (== @bvneg) x) v ...)) 
+     (apply @bvadd (append u v))]
+    [((expression (== @bvneg) x) (expression (== @bvadd) u ... x v ...)) 
+     (apply @bvadd (append u v))]
+    [((expression (== @bvadd) u ... (expression (== @bvneg) x) v ...) x) 
+     (apply @bvadd (append u v))]
+    [((expression (== @bvadd) u ... x v ...) (expression (== @bvneg) x)) 
+     (apply @bvadd (append u v))]
+    [(_ _) #f]))
 
 
-(define @bvadd-info (list + 0 #f @bvmul    (lambda (e) (match e 
-                                                       [(expression (== @bvmul) (? number? n) x) (list x n)]
-                                                       [_ #f]))))
-(define @bvmul-info (list * 1 0  @expt (lambda (e) (match e 
-                                                       [(expression (== @expt) x (? number? n)) (list x n)]
-                                                       [_ #f]))))
+(define-op @bvmul 
+  #:name 'bvmul 
+  #:type nary-type 
+  #:op (commutative-associative-nary-operator @bvmul * simplify-bvmul 1))
 
-; Applies the binary +/* operator to the given arguments.
-(define (binary:+/* op op-info a b)
-  (or (simplify-arithmetic op op-info a b) 
-      (cond [(number? a) (expression op a b)]
-            [(number? b) (expression op b a)]
-            [else (sort/expression op a b)])))
+; Simplifies the multiplication of a and b, if possible, assuming that both have already been finitized.
+; Returns #f if no simplification is possible.
+(define (simplify-bvmul a b)
+  (match* (a b)
+    [(0 _) 0]
+    [(_ 0) 0]
+    [(1 y) (sfinitize y)]
+    [(x 1) (sfinitize x)]
+    [(-1 y) (@bvneg y)]
+    [(x -1) (@bvneg x)]
+    [((? integer? x) (? integer? y)) (sfinitize (* (sfinitize x) (sfinitize y)))]
+    [((expression (== @bvneg) x) (expression (== @bvneg) y)) (sort/expression @bvmul x y)]
+    [(_ _) #f]))
 
-; Applies the nary +/* operator to the given arguments.
-(define (nary:+/* op op-info args)
-  (let*-values ([(primitive-op identity annihilator) (values (first op-info) (second op-info) (third op-info))]
-                [(num-args term-args) (partition number? args)]    
-                [(num-fold) (foldl primitive-op identity num-args)])
-    (cond [(null? term-args) num-fold]
-          [(equal? num-fold annihilator) annihilator]
-          ;[else (expression op (cons num-fold (sort term-args term<?)))])))
-          [else (let*-values ([(num-simp term-simp) (partition number? (simplify-arithmetic-fp op op-info term-args))]
-                              [(term-out) (sort term-simp term<?)]
-                              [(num-out) (primitive-op num-fold (foldl primitive-op identity num-simp))])
-                             (cond [(null? term-out) num-out]
-                                   [(= num-out identity) (if (null? (cdr term-out)) 
-                                                             (car term-out) 
-                                                             (apply expression op term-out))]
-                                   [else (apply expression op (cons num-out term-out))]))])))
+(define-op @bvsub 
+  #:name 'bvsub 
+  #:type nary-type 
+  #:op 
+  (case-lambda 
+    [(x) (@bvneg x)]
+    [(x y) (@bvadd x (@bvneg y))]
+    [(x . y) (apply @bvadd x (map @bvneg y))]))                  
 
-; Applies (simplify-arithmetic op op-info) to the given arguments until it reaches a fix point.
-; This function assumes that a given argument can be paired up with at most one other 
-; argument for the purposes of simplification.
-(define (simplify-arithmetic-fp op op-info args)
+(define (second-non-zero? x y)
+  (if (integer? y)
+      (not (= y 0))
+      (! (@bveq y 0)))) 
+
+(define-op  @bvurem 
+  #:name 'bvurem 
+  #:type binary-type
+  #:pre  second-non-zero?
+  #:op   (lambda (x y)
+           (match* (x y)
+             [(x 0) (if (ignore-division-by-0) 
+                        (expression @bvurem x 0)
+                        (error '@bvurem "bvurem undefined for 0"))]
+             [((? integer? x) (? integer? y)) (sfinitize (remainder (ufinitize x) (ufinitize y)))]
+             [(0 x) 0]
+             [(x 1) 0]
+             [(x x) 0]
+             [((? integer? x) (? term? y)) (expression @bvurem (ufinitize x) y)]
+             [((? term? x) (? integer? y)) (expression @bvurem x (ufinitize y))]
+             [((? term? x) (? term? y))    (expression @bvurem x y)])))
+
+(define-syntax-rule (bv-signed-remainder @op op)
+  (lambda (x y)
+    (match* (x y)
+      [(x 0) (if (ignore-division-by-0) 
+                 (expression @op x 0)
+                 (error (object-name @op) "undefined for 0"))]
+      [((? integer? x) (? integer? y)) (sfinitize (op (sfinitize x) (sfinitize y)))]
+      [(0 x) 0]
+      [(x 1) 0]
+      [(x -1) 0]
+      [(x x) 0]
+      [(x (expression (== @bvneg x))) 0]
+      [((expression (== @bvneg x)) x) 0]
+      [((? integer? x) (? term? y)) (expression @op (sfinitize x) y)]
+      [((? term? x) (? integer? y)) (expression @op x (sfinitize y))]
+      [((? term? x) (? term? y))    (expression @op x y)])))
+
+(define-op  @bvsrem 
+  #:name 'bvsrem 
+  #:type binary-type
+  #:pre  second-non-zero?
+  #:op   (bv-signed-remainder @bvsrem remainder))
+
+(define-op  @bvsmod 
+  #:name 'bvsmod 
+  #:type binary-type
+  #:pre  second-non-zero?
+  #:op   (bv-signed-remainder @bvsrem modulo))
+
+(define-op  @bvsdiv ; Common simplifications, such as (bvsdiv x x) = 1 do not work, due to 
+  #:name 'bvsdiv    ; undefined behavior for division by 0.
+  #:type binary-type
+  #:pre  second-non-zero?
+  #:op   (lambda (x y)
+           (match* (x y)
+             [(x 0) (if (ignore-division-by-0) 
+                        (expression @bvsdiv x 0)
+                        (error '@bvsdiv "bvsdiv undefined for 0"))]
+             [((? integer? x) (? integer? y)) (sfinitize (quotient (sfinitize x) (sfinitize y)))]
+             [(x 1) (sfinitize x)]
+             [(x -1) (@bvneg x)]
+             [((? integer? x) (? term? y)) (expression @bvsdiv (sfinitize x) y)]
+             [((? term? x) (? integer? y)) (expression @bvsdiv x (sfinitize y))]
+             [((? term? x) (? term? y))    (expression @bvsdiv x y)])))
+
+(define-op  @bvudiv 
+  #:name 'bvudiv 
+  #:type binary-type
+  #:pre  second-non-zero?
+  #:op   (lambda (x y)
+           (match* (x y)
+             [(x 0) (if (ignore-division-by-0) 
+                        (expression @bvudiv x 0)
+                        (error '@bvudiv "bvudiv undefined for 0"))]
+             [((? integer? x) (? integer? y)) (sfinitize (quotient (ufinitize x) (ufinitize y)))]
+             [(x 1) (sfinitize x)]
+             [((? integer? x) (? term? y)) (expression @bvudiv (ufinitize x) y)]
+             [((? term? x) (? integer? y)) (expression @bvudiv x (ufinitize y))]
+             [((? term? x) (? term? y))    (expression @bvudiv x y)])))
+
+(define-op @bvshl
+  #:name 'bvshl
+  #:type binary-type
+  #:op  
+  (lambda (x y)
+    (match* (x y)
+      [(x 0) (sfinitize x)]
+      [(0 _) 0]
+      [(x (? integer? y))
+       (let ([y (ufinitize y)])
+         (if (< y (current-bitwidth)) 
+             (if (integer? x)
+                 (sfinitize (arithmetic-shift (sfinitize x) y)) 
+                 (expression @bvshl x y))
+             0))]
+      [((? integer? x) y) (expression @bvshl (sfinitize x) y)]
+      [(x y) (expression @bvshl x y)])))
+
+(define-op @bvlshr
+  #:name 'bvlshr
+  #:type binary-type
+  #:op   
+  (lambda (x y)
+    (match* (x y)
+      [(x 0) (sfinitize x)]
+      [(0 _) 0]
+      [(x (? integer? y))
+       (let ([y (ufinitize y)])
+         (if (< y (current-bitwidth))
+             (if (integer? x)
+                 (sfinitize (arithmetic-shift (ufinitize x) (- y)))
+                 (expression @bvlshr x y))
+             0))]
+      [((? integer? x) y) (expression @bvlshr (sfinitize x) y)]
+      [(x y) (expression @bvlshr x y)])))
+
+(define-op @bvashr
+  #:name 'bvashr
+  #:type binary-type
+  #:op   
+  (lambda (x y)
+    (match* (x y)
+      [(x 0) (sfinitize x)]
+      [(0 _) 0]
+      [(-1 _) -1]
+      [((? integer? x) (? integer? y))
+       (let ([y (ufinitize y)])
+         (if (< y (current-bitwidth))
+             (arithmetic-shift (sfinitize x) (- y))
+             (if (>= (sfinitize x) 0) 0 -1)))] 
+      [(x (? integer? y)) (expression @bvashr x (ufinitize y))]
+      [((? integer? x) y) (expression @bvashr (sfinitize x) y)]
+      [(x y) (expression @bvashr x y)])))
+
+(define-op @bvnot
+  #:name 'bvnot
+  #:type unary-type
+  #:op
+  (lambda (x)
+    (match x
+      [(? integer? x) (sfinitize (bitwise-not x))]
+      [(expression (== @bvnot) x) x]
+      [x (expression @bvnot x)])))
+
+(define-op @bvand
+  #:name 'bvand
+  #:type nary-type 
+  #:op   
+  (local [(define (simplify-bvand a b)  
+            (simplify-bitwise @bvand bitwise-and @bvor -1 0 a b))]
+    (commutative-associative-nary-operator @bvand bitwise-and simplify-bvand -1)))
+
+(define-op @bvor
+  #:name 'bvor
+  #:type nary-type 
+  #:op   
+  (local [(define (simplify-bvor a b)  
+            (simplify-bitwise @bvor bitwise-ior @bvand 0 -1 a b))]
+    (commutative-associative-nary-operator @bvor bitwise-ior simplify-bvor 0)))
+
+(define (simplify-bitwise @op op @co identity annihilator a b [commute? #t])
+   (match* (a b)
+    [((? integer? x) (? integer? y)) (sfinitize (op (sfinitize x) (sfinitize y)))]
+    [((== annihilator) _) annihilator]
+    [((== identity) y) y]
+    [(x x)  x]
+    [(x (expression (== @bvnot) x)) annihilator]   
+    [(x (expression (== @op) _ ... x _ ...)) b]
+    [(x (expression (== @op) _ ... (expression (== @bvnot) x) _ ...)) annihilator] 
+    [(x (expression (== @bvnot) (expression (== @co) _ ... x _ ...))) annihilator]
+    [(x (expression (== @bvnot) (expression (== @co) _ ... (expression (== @bvnot) x) _ ...))) b]
+    [((expression (== @bvnot) x) (expression (== @op) _ ... x _ ...)) annihilator]
+    [((expression (== @bvnot) x) (expression (== @bvnot) (expression (== @co) _ ... x _ ...))) b]    
+    [((expression (== @op) _ ... x _ ...) 
+      (expression (== @op) _ ... (expression (== @bvnot) x) _ ...)) annihilator]   
+    [((expression (== @bvnot) (expression (== @co) _ ... x _ ...)) 
+      (expression (== @bvnot) (expression (== @co) _ ... (expression (== @bvnot) x) _ ...))) annihilator]   
+    [((expression (== @op) _ ... x _ ...) 
+      (expression (== @bvnot) (expression (== @co) _ ... x _ ...))) annihilator]
+    [(_ _) (and commute? (simplify-bitwise @op op @co identity annihilator a b #f))]))
+    
+(define-op @bvxor 
+  #:name 'bvxor
+  #:type nary-type 
+  #:op   (commutative-associative-nary-operator @bvxor bitwise-xor simplify-bvxor 0))
+
+(define (simplify-bvxor x y)
+  (match* (x y)
+    [((? integer?) (? integer?)) (sfinitize (bitwise-xor (sfinitize x) (sfinitize y)))]
+    [(_ (== x)) 0]
+    [(_ 0) (sfinitize x)]
+    [(0 _) (sfinitize y)]
+    [(_ -1) (@bvnot x)]
+    [(-1 _) (@bvnot y)]
+    [(_ (expression (== @bvnot) (== x))) -1]
+    [((expression (== @bvnot) (== y)) _) -1] 
+    [(_ _) #f]))
+    
+(define-syntax-rule (commutative-associative-nary-operator @op op simplify-op identity)
+  (case-lambda
+    [() identity]
+    [(x) (sfinitize x)]
+    [(x y)
+     (or (simplify-op x y)
+         (cond [(integer? x) (expression @op (sfinitize x) y)]
+               [(integer? y) (expression @op (sfinitize y) x)]
+               [else (sort/expression @op x y)]))]
+    [args
+     (let*-values ([(num-args term-args) (partition integer? args)]
+                   [(num-term) (sfinitize (apply op (map sfinitize num-args)))])
+       (cond [(null? term-args) num-term]
+             [else 
+              (match (simplify-fp simplify-op (cons num-term term-args))
+                [(list t) t]
+                [(list a (... ...) (? integer? n) b (... ...)) (apply expression @op n (sort (append a b) term<?))]
+                [other (apply expression @op (sort other term<?))])]))]))
+
+; Simplifies the given list of terms using the given simplification procedure
+; until fixed point and returns the resulting list of values.  The simplification 
+; procedure should return #f if no simplifications are applicable.  
+(define (simplify-fp simplifier args)
+  ;(printf "simplify-fp* ~a\n" args)
   (define (simplify head tail)
+    ;(printf "simplify ~a ~a\n" head tail)
     (cond [(null? tail) head]
           [(null? (cdr tail)) (append head tail)]
           [else (let simplify-tail ([a (car tail)] [b-head '()] [b-tail (cdr tail)])
+                  ;(printf "simplify-tail ~a ~a ~a\n" a b-head b-tail)
                   (if (null? b-tail)
                       (simplify (append head (list a)) b-head)
-                      (let ([simp (simplify-arithmetic op op-info a (car b-tail))])
+                      (let ([simp (simplifier a (car b-tail))])
                         (if simp 
                             (simplify head (append b-head (cons simp (cdr b-tail))))
                             (simplify-tail a (append b-head (list (car b-tail))) (cdr b-tail))))))]))
   (let ([simp (simplify '() args)])
     (if (equal? simp args) 
         args 
-        (simplify-arithmetic-fp op op-info simp))))
-
-; Applies basic arithmetic simplifications to two arguments, a and b, assuming that op is @bvadd or 
-; @bvmul.  The op-info list must contain 5 values:  
-; (0) primitive-op, which is the primitive Racket operator corresponding to op;
-; (1) identity, which is the identity element for op; 
-; (2) annihilator, which is an element such that (op e annihilator) = annihilator, or #f if no such element exists;
-; (3) agg-op, which is an operator such that (op x (agg-op x -1)) = identity, and (agg-op x n) = (op x ...), where x occurs n times; and, 
-; (4) agg?, which is a function that returns (list x n) when applied to an expression of the form (agg-op x n) or 
-;    (agg-op n x), or #f otherwise.
-; Returns #f if no simplifications are applicable; otherwise returns the simplified result.
-(define (simplify-arithmetic op op-info a b)
-  (match op-info
-    [(list primitive-op identity annihilator agg-op agg?)               
-     (match* (a b) 
-       [((? number? a) (? number? b)) (primitive-op a b)]
-       [((== annihilator) b) annihilator]
-       [(a (== annihilator)) annihilator]
-       [((== identity) b) b]
-       [(a (== identity)) a]
-       [(_ (== a)) (agg-op a 2)]
-       [((? number? a) (? expression? b)) 
-        (match b
-          [(expression (== op) (? number? n) x) (op (primitive-op a n) x)]
-          [(app agg? (list (expression (== op) (? number? n) x) -1)) (op (op a (agg-op n -1)) (agg-op x -1))]
-          [(expression (== ite) c (? number? x) (? number? y)) (ite c (primitive-op a x) (primitive-op a y))]
-          [_ #f])]
-       [((? expression? a) (? number? b)) (simplify-arithmetic op op-info b a)] 
-       [((? term? a) (? term? b)) 
-        (let basic-laws ([a a] [b b] [try-again #t])
-          (match b
-            [(expression (== op) x (? (curry cancel? agg? a))) x]
-            [(expression (== op) (? (curry cancel? agg? a)) y) y]
-            [(app agg? (list (expression (== op) x (== a)) -1)) (agg-op x -1)]
-            [(app agg? (list (expression (== op) (== a) y) -1)) (agg-op y -1)]
-            [(app agg? (list y (? number? n))) 
-             (match a 
-               [(== y) (agg-op a (+ n 1))]
-               [(app agg? (list (== y) (? number? m))) (agg-op y (+ n m))]             
-               [_ (and try-again (expression? a) (basic-laws b a #f))])]
-            [_ (and try-again (expression? a) (basic-laws b a #f))]))]
-       [(_ _) #f])]))
-
-(define (cancel? agg? a b)
-  (match* (a b)
-    [(_ (app agg? (list (== a) -1))) #t]
-    [((app agg? (list (== b) -1)) _) #t]
-    [(_ _) #f]))
-
+        (simplify-fp simplifier simp))))
+     
+     
