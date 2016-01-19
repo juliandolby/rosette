@@ -52,6 +52,11 @@
 	  (and (string-contains? t "C")
 	       (equal? t y))))))
 
+(define (ex12 x z)
+  (assert (< (string-length x) 5))
+  (assert (not (= (sub1 (string-length x)) z)))
+  (assert (equal? (str-at x z) "c")))
+
 (show "Find an assignment for x, where x.\"ab\"=\"ba\".x and the length of x equals to 7:\n x = ~s\n" ex1 x)
 (show "Find assignments for x and y, where x and y are distinct and their lengths are equal:\n x = ~s, y = ~s\n" ex2 x y)
 (show "Find assignments for x and y, where x.y != y.x.\n x = ~s, y = ~s\n" ex3 x y)
@@ -63,5 +68,6 @@
 (show "Find a string and a suffix.\n x = ~s, y = ~s\n" ex9 x y)     
 (show "Find a string that contains AB, BC and z.\n x = ~s\n" ex10 x)     
 (show "Replace ab with C.\n x = ~s, y = ~s\n" ex11 x y)     
+(show "Find a string x and an index z such that x[z] equals \"c\".\n x = ~s z = ~s" ex12 x z)
 
 

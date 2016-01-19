@@ -2,7 +2,7 @@
 
 (require "term.rkt" "op.rkt" "union.rkt" "bool.rkt" "num.rkt" "any.rkt" "generic.rkt" "merge.rkt")
 
-(provide @string? @string-length @str-to-int @int-to-str @string-append @substring @string-set! @string-copy! @string-fill! @string-replace @string-contains? @string-prefix? @string-suffix?)
+(provide @string? @string-length @str-to-int @int-to-str @string-append @substring @string-set! @string-copy! @string-fill! @string-replace @string-contains? @string-prefix? @string-suffix? @str-at)
          
 (define (string/cast v)
   (match v
@@ -90,6 +90,14 @@
   #:op
   (match-lambda [(? string? x) (str-to-int x)]
                 [x (expression @str-to-int x)]))
+
+(define-op @str-at
+  #:name 'str-at
+  #:type (op/-> (@string? @number?) @string?)
+  #:pre  (case-lambda [(s i) (&& (@>= i 0) (@< i (@string-length s)))])
+  #:op
+  (match-lambda** [((? string? s) (? number? i)) (substring s i (add1 i))]
+                  [(s i) (expression @str-at s i)]))
 
 (define-op @substring
   #:name 'substring

@@ -12,3 +12,4 @@ bin/z3
 bin/cvc4
 **/compiled
 **/compiled/**
+*~
