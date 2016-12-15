@@ -5,7 +5,7 @@
   (for-syntax racket/syntax (only-in "core/lift.rkt" drop@)) 
   racket/provide 
   "core/bool.rkt" "core/real.rkt" "core/numerics.rkt" "core/bitvector.rkt"
-  "core/function.rkt"
+  "core/function.rkt" "core/string.rkt"
   "core/procedure.rkt" "core/equality.rkt" "core/distinct.rkt" "core/reflect.rkt" 
   "adt/box.rkt" "adt/list.rkt" "adt/vector.rkt" 
   "struct/struct.rkt" "struct/generics.rkt"
@@ -19,9 +19,11 @@
      pc with-asserts with-asserts-only asserts clear-asserts!
      @assert @boolean? @false? @! @&& @=> @<=> @forall @exists
      ; core/real.rkt
-     @integer? @real? @= @< @<= @>= @> 
+     @integer? @real? @= @< @<= @>= @>
      @+ @* @- @/ @quotient @remainder @modulo @abs
      @integer->real @real->integer @int? 
+     ; string.rkt
+     @string? @string-length @string=?
      ; core/numerics.rkt
      @number? @positive? @negative? @zero? @even? @odd?
      @add1 @sub1 @sgn @truncate @floor @ceiling @min @max

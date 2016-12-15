@@ -6,6 +6,8 @@
          (only-in "../../base/core/polymorphic.rkt" ite ite* =? guarded-test guarded-value)
          (only-in "../../base/core/distinct.rkt" @distinct?)
          (only-in "../../base/core/bool.rkt" @! @&& @|| @=> @<=> @forall @exists)
+         (only-in "../../base/core/string.rkt"
+	 	  @string-length @string=?)
          (only-in "../../base/core/real.rkt" 
                   @integer? @real? @= @< @<= @>= @> 
                   @+ @* @- @/ @quotient @remainder @modulo 
@@ -73,6 +75,10 @@
                               (for/list ([e es]) (enc e env quantified))))]
     [(expression (app rosette->smt (? procedure? $op)) es ...) 
      (apply $op (for/list ([e es]) (enc e env quantified)))]
+    [(expression (== @string=?) x y)
+     ($= (enc x env) (enc y env))]
+    [(expression (== @string-length) x)
+     ($str.len (enc x env))]
     [_ (error 'enc "cannot encode ~a to SMT" v)]))
 
 (define (enc-const v env quantified) (ref! env v))
@@ -83,11 +89,12 @@
     [#f $false]
     [(? integer?) (inexact->exact v)]
     [(? real?) (enc-real v)]
+    [(? string?) (format "~s" v)]
     [(bv lit t) ($bv lit (bitvector-size t))]
     [_ (error 'enc "expected a boolean?, integer?, real?, or bitvector?, given ~a" v)]))
 
 (define-syntax-rule (enc-real v)
-  (if (exact? v) ($/ (numerator v) (denominator v)) (string->symbol (~r v))))
+  (if (exact? v) ($/ (numerator v) (denominator v)) (string->symbol (if (rational? v) (~r v) (format "~a" v)))))
 
 (define-syntax define-encoder
   (syntax-rules ()

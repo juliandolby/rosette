@@ -116,6 +116,14 @@
   < <= 
   is_int to_int to_real )
 
+; String theory
+(define String 'String)
+(define-ops 
+  str.++ str.len str.at str.substr str.in.re str.to.re 
+  re.++ re.union re.inter re.* re.+ re.opt re.range re.loop re.nostr re.allchar
+  str.contains str.indexof str.replace str.prefixof str.suffixof 
+  str.to.int int.to.str)
+
 ; Quantifiers
 (define (quantified quantifier vars body)
   `(,quantifier ,vars ,body))

@@ -152,5 +152,5 @@
 ; such that t' != t, (subtype? t' t), and t' also accepts the given values.  
 (define type-of 
   (typechecker 
-   #:base boolean? integer? real? list? pair? procedure? vector? box?))
+   #:base boolean? integer? real? list? pair? procedure? vector? box? string?))
 
