@@ -3,7 +3,7 @@
 (require "term.rkt" "union.rkt")
 (require "bool.rkt" "polymorphic.rkt" "type.rkt" "real.rkt")
 
-(provide @string-length @string=? T*->string? @string?)
+(provide @string-length @string=? T*->string? @string? @number->string @string=? @substring @string-contains? @string-prefix? @string-suffix?)
 
 ;; ----------------- String type ----------------- ;; 
 (define-lifted-type @string? 
@@ -82,11 +82,49 @@
 
 (define-lifted-operator @string=?  $string=? T*->boolean?)
 
+(define ($string-contains? x y)
+  (match* (x y)
+	  [((? string?) (? string?)) (string-contains? x y)]
+	  [(_ _) (expression @string-contains? x y)]))
+
+(define-lifted-operator @string-contains?  $string-contains? T*->boolean?)
+
+(define ($string-prefix? x y)
+  (match* (x y)
+	  [((? string?) (? string?)) (string-prefix? x y)]
+	  [(_ _) (expression @string-prefix? x y)]))
+
+(define-lifted-operator @string-prefix?  $string-prefix? T*->boolean?)
+
+
+(define ($string-suffix? x y)
+  (match* (x y)
+	  [((? string?) (? string?)) (string-suffix? x y)]
+	  [(_ _) (expression @string-suffix? x y)]))
+
+(define-lifted-operator @string-suffix?  $string-suffix? T*->boolean?)
+
 ;; ----------------- String Operators ----------------- ;; 
+
+(define ($substring x)
+  (match x
+	 [(? string?) (substring x)]
+	 [(expression (== @substring) _) x]
+	 [_ (expression @substring x)]))
+
+(define-lifted-operator @substring $substring T*->string?)
+
+(define ($number->string x)
+  (match x
+	 [(? integer?) (number->string x)]
+	 [(expression (== @number->string) _) x]
+	 [_ (expression @number->string x)]))
+
+(define-lifted-operator @number->string $number->string T*->string?)
 
 (define ($string-length x)
   (match x
-	 [(? string?) (string-length x)]
+	 [(? integer?) (string-length x)]
 	 [(expression (== @string-length) _) x]
 	 [_ (expression @string-length x)]))
 

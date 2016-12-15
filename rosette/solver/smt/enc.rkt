@@ -7,7 +7,8 @@
          (only-in "../../base/core/distinct.rkt" @distinct?)
          (only-in "../../base/core/bool.rkt" @! @&& @|| @=> @<=> @forall @exists)
          (only-in "../../base/core/string.rkt"
-	 	  @string-length @string=?)
+	 	  @string-length @string=? @substring @string-contains? @string-prefix?
+		  @string-suffix?)
          (only-in "../../base/core/real.rkt" 
                   @integer? @real? @= @< @<= @>= @> 
                   @+ @* @- @/ @quotient @remainder @modulo 
@@ -79,6 +80,14 @@
      ($= (enc x env) (enc y env))]
     [(expression (== @string-length) x)
      ($str.len (enc x env))]
+    [(expression (== @substring) str i j)
+     ($str.substr (enc str env) (enc i env) (enc j env))]
+    [(expression (== @string-contains?) str part)
+     ($str.contains (enc str env) (enc part env))]
+    [(expression (== @string-prefix?) str part)
+     ($str.prefixof (enc part env) (enc str env))]
+    [(expression (== @string-suffix?) str part)
+     ($str.suffixof (env part env) (enc str env))]
     [_ (error 'enc "cannot encode ~a to SMT" v)]))
 
 (define (enc-const v env quantified) (ref! env v))
