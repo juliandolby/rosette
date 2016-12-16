@@ -23,7 +23,7 @@
      @+ @* @- @/ @quotient @remainder @modulo @abs
      @integer->real @real->integer @int? 
      ; string.rkt
-     @string? @string-length @string=?  @substring @string-contains?
+     @string? @string-length @string=? @substring @string-contains?
      @string-prefix? @string-suffix?
      ; core/numerics.rkt
      @number? @positive? @negative? @zero? @even? @odd?
