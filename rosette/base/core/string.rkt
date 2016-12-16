@@ -3,7 +3,7 @@
 (require "term.rkt" "union.rkt")
 (require "bool.rkt" "polymorphic.rkt" "type.rkt" "real.rkt")
 
-(provide @string-length @string=? T*->string? @string? @string=? @substring @string-contains? @string-prefix? @string-suffix? @str-to-int @int-to-str)
+(provide @string-append @string-length @string=? T*->string? @string? @string=? @substring @string-contains? @string-replace @string-prefix? @string-suffix? @str-to-int @int-to-str)
 
 ;; ----------------- String type ----------------- ;; 
 (define-lifted-type @string? 
@@ -129,6 +129,13 @@
 	  [(_ _) (expression @string-append x y)]))
 
 (define-lifted-operator @string-append  $string-append T*->string?)
+
+(define ($string-replace x y z)
+  (match* (x y z)
+	  [((? string?) (? string?) (? string?)) (string-replace x y z)]
+	  [(_ _ _) (expression @string-replace x y z)]))
+
+(define-lifted-operator @string-replace $string-replace T*->string?)
 
 ;; ----------------- String Conversions ----------------- ;;
 

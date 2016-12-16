@@ -8,7 +8,7 @@
          (only-in "../../base/core/bool.rkt" @! @&& @|| @=> @<=> @forall @exists)
          (only-in "../../base/core/string.rkt"
 	 	  @string-length @string=? @substring @string-contains? @string-prefix?
-		  @string-suffix? @str-to-int @int-to-str)
+		  @string-suffix? @str-to-int @int-to-str @string-append @string-replace)
          (only-in "../../base/core/real.rkt" 
                   @integer? @real? @= @< @<= @>= @> 
                   @+ @* @- @/ @quotient @remainder @modulo 
@@ -78,20 +78,26 @@
      (apply $op (for/list ([e es]) (enc e env quantified)))]
     [(expression (== @string=?) x y)
      ($= (enc x env) (enc y env))]
+    [(expression (== @string-append) a b)
+     ($str.++ (enc a env) (enc b env))]
     [(expression (== @string-length) x)
      ($str.len (enc x env))]
-    [(expression (== @str-to-int) x)
-     ($str.to.int (enc x env))]
-    [(expression (== @int-to-str) x)
-     ($int.to.str (enc x env))]
     [(expression (== @substring) str i j)
      ($str.substr (enc str env) (enc i env) (enc j env))]
     [(expression (== @string-contains?) str part)
      ($str.contains (enc str env) (enc part env))]
+;;    [(expression (== @string-indexof) str part)
+;;     ($str.indexof (enc str env) (enc part env))]
+    [(expression (== @string-replace) str from to)
+     ($str.replace (enc str env) (enc from env) (enc to env))]
     [(expression (== @string-prefix?) str part)
      ($str.prefixof (enc part env) (enc str env))]
     [(expression (== @string-suffix?) str part)
      ($str.suffixof (enc part env) (enc str env))]
+    [(expression (== @str-to-int) x)
+     ($str.to.int (enc x env))]
+    [(expression (== @int-to-str) x)
+     ($int.to.str (enc x env))]
     [_ (error 'enc "cannot encode ~a to SMT" v)]))
 
 (define (enc-const v env quantified) (ref! env v))

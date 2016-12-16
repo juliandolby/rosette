@@ -25,6 +25,7 @@
      ; string.rkt
      @string? @string-length @string=? @substring @string-contains?
      @string-prefix? @string-suffix? @str-to-int @int-to-str
+     @string-append @string-replace
      ; core/numerics.rkt
      @number? @positive? @negative? @zero? @even? @odd?
      @add1 @sub1 @sgn @truncate @floor @ceiling @min @max
