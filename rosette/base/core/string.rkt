@@ -106,14 +106,17 @@
 
 ;; ----------------- String Operators ----------------- ;; 
 
-(define ($substring x)
-  (match x
-	 [(? string?) (substring x)]
-	 [(expression (== @substring) _) x]
-	 [_ (expression @substring x)]))
+(define ($substring x i j)
+  (match* (x i j)
+	 [((? string?) (? integer?) (? integer?)) (substring x i j)]
+	 [(_ _ _) (expression @substring x i j)]))
 
-(define-lifted-operator @substring $substring T*->string?)
-
+(define-operator @substring
+   #:identifier 'substring
+   #:range T*->string?
+   #:unsafe $substring
+   #:safe (lambda (s i j) ($substring (type-cast @string? s 'substring) (type-cast @integer? i 'substring) (type-cast @integer? j 'substring))))
+   
 (define ($number->string x)
   (match x
 	 [(? integer?) (number->string x)]
