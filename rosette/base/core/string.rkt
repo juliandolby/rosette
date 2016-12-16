@@ -87,7 +87,7 @@
 	  [((? string?) (? string?)) (string-contains? x y)]
 	  [(_ _) (expression @string-contains? x y)]))
 
-(define-lifted-operator @string-contains?  $string-contains? T*->boolean?)
+(define-lifted-operator @string-contains? $string-contains? T*->boolean?)
 
 (define ($string-prefix? x y)
   (match* (x y)
