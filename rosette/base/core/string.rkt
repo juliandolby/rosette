@@ -3,7 +3,7 @@
 (require "term.rkt" "union.rkt")
 (require "bool.rkt" "polymorphic.rkt" "type.rkt" "real.rkt")
 
-(provide @string-length @string=? T*->string? @string? @number->string @string=? @substring @string-contains? @string-prefix? @string-suffix?)
+(provide @string-length @string=? T*->string? @string? @string=? @substring @string-contains? @string-prefix? @string-suffix? @str-to-int @int-to-str)
 
 ;; ----------------- String type ----------------- ;; 
 (define-lifted-type @string? 
@@ -96,7 +96,6 @@
 
 (define-lifted-operator @string-prefix?  $string-prefix? T*->boolean?)
 
-
 (define ($string-suffix? x y)
   (match* (x y)
 	  [((? string?) (? string?)) (string-suffix? x y)]
@@ -117,25 +116,46 @@
    #:unsafe $substring
    #:safe (lambda (s i j) ($substring (type-cast @string? s 'substring) (type-cast @integer? i 'substring) (type-cast @integer? j 'substring))))
    
-(define ($number->string x)
-  (match x
-	 [(? integer?) (number->string x)]
-	 [(expression (== @number->string) _) x]
-	 [_ (expression @number->string x)]))
-
-(define-lifted-operator @number->string $number->string T*->string?)
-
 (define ($string-length x)
   (match x
-	 [(? integer?) (string-length x)]
-	 [(expression (== @string-length) _) x]
+	 [(? string?) (string-length x)]
 	 [_ (expression @string-length x)]))
 
 (define-lifted-operator @string-length $string-length T*->integer?)
 
 (define ($string-append x y)
   (match* (x y)
-	  [((? string?) (? string?)) (string-append x) y]
+	  [((? string?) (? string?)) (string-append x y)]
 	  [(_ _) (expression @string-append x y)]))
 
 (define-lifted-operator @string-append  $string-append T*->string?)
+
+;; ----------------- String Conversions ----------------- ;;
+
+(define (int-to-str i)
+  (if (and i (integer? i) (>= i 0))
+      (number->string i)
+      ""))
+
+(define ($int-to-str i)
+  (match i
+     [(? integer? i) (int-to-str i)]
+     [_ (expression @int-to-str i)]))
+
+(define-operator @int-to-str
+   #:identifier 'int-to-str
+   #:range T*->string?
+   #:unsafe $int-to-str
+   #:safe (lambda (i) ($int-to-str (type-cast @integer? i 'int-to-str))))
+
+(define (str-to-int s)
+  (let ((n (string->number s)))
+    (if (and n (integer? n) (>= n 0)) n -1)))
+
+(define ($str-to-int x)
+  (match x
+	 [(? string?) (str-to-int x)]
+	 [_ (expression @str-to-int x)]))
+
+(define-lifted-operator @str-to-int $str-to-int T*->integer?)
+
