@@ -8,7 +8,8 @@
          (only-in "../../base/core/bool.rkt" @! @&& @|| @=> @<=> @forall @exists)
          (only-in "../../base/core/string.rkt"
 	 	  @string-length @string=? @substring @string-contains? @string-prefix?
-		  @string-suffix? @str-to-int @int-to-str @string-append @string-replace)
+		  @string-suffix? @str-to-int @int-to-str @string-append @string-replace
+		  @string-indexof)
          (only-in "../../base/core/real.rkt" 
                   @integer? @real? @= @< @<= @>= @> 
                   @+ @* @- @/ @quotient @remainder @modulo 
@@ -86,8 +87,8 @@
      ($str.substr (enc str env) (enc i env) (enc j env))]
     [(expression (== @string-contains?) str part)
      ($str.contains (enc str env) (enc part env))]
-;;    [(expression (== @string-indexof) str part)
-;;     ($str.indexof (enc str env) (enc part env))]
+    [(expression (== @string-indexof) str part)
+     ($str.indexof (enc str env) (enc part env))]
     [(expression (== @string-replace) str from to)
      ($str.replace (enc str env) (enc from env) (enc to env))]
     [(expression (== @string-prefix?) str part)

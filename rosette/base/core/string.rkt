@@ -3,7 +3,7 @@
 (require "term.rkt" "union.rkt")
 (require "bool.rkt" "polymorphic.rkt" "type.rkt" "real.rkt")
 
-(provide @string-append @string-length @string=? T*->string? @string? @string=? @substring @string-contains? @string-replace @string-prefix? @string-suffix? @str-to-int @int-to-str)
+(provide @string-append @string-length @string=? T*->string? @string? @string=? @substring @string-contains? @string-replace @string-prefix? @string-suffix? @str-to-int @int-to-str @string-indexof)
 
 ;; ----------------- String type ----------------- ;; 
 (define-lifted-type @string? 
@@ -105,24 +105,6 @@
 
 ;; ----------------- String Operators ----------------- ;; 
 
-(define ($substring x i j)
-  (match* (x i j)
-	 [((? string?) (? integer?) (? integer?)) (substring x i j)]
-	 [(_ _ _) (expression @substring x i j)]))
-
-(define-operator @substring
-   #:identifier 'substring
-   #:range T*->string?
-   #:unsafe $substring
-   #:safe (lambda (s i j) ($substring (type-cast @string? s 'substring) (type-cast @integer? i 'substring) (type-cast @integer? j 'substring))))
-   
-(define ($string-length x)
-  (match x
-	 [(? string?) (string-length x)]
-	 [_ (expression @string-length x)]))
-
-(define-lifted-operator @string-length $string-length T*->integer?)
-
 (define ($string-append x y)
   (match* (x y)
 	  [((? string?) (? string?)) (string-append x y)]
@@ -130,12 +112,52 @@
 
 (define-lifted-operator @string-append  $string-append T*->string?)
 
+(define ($substring x i j)
+  (match* (x i j)
+	 [((? string?) (? integer?) (? integer?)) (substring x i j)]
+	 [(_ _ _) (expression @substring x i j)]))
+
+(define ($string-length x)
+  (match x
+	 [(? string?) (string-length x)]
+	 [_ (expression @string-length x)]))
+
+(define-lifted-operator @string-length $string-length T*->integer?)
+
+(define-operator @substring
+   #:identifier 'substring
+   #:range T*->string?
+   #:unsafe $substring
+   #:safe (lambda (s i j) ($substring (type-cast @string? s 'substring) (type-cast @integer? i 'substring) (type-cast @integer? j 'substring))))
+   
 (define ($string-replace x y z)
   (match* (x y z)
 	  [((? string?) (? string?) (? string?)) (string-replace x y z)]
 	  [(_ _ _) (expression @string-replace x y z)]))
 
 (define-lifted-operator @string-replace $string-replace T*->string?)
+
+(define (string-indexof str p)
+  (let ((lim (string-length str))
+	(len (string-length p)))    
+    (define (rec s l)
+      (if (>= l len)
+	  s
+	  (if (and
+	       (> lim (+ s l))
+	       (eqv? (string-ref str (+ s l)) (string-ref p l)))
+	      (rec s (+ l 1))
+	      (if (> lim s)
+		  (rec (+ s 1) 0)
+		  -1))))
+    (rec 0 0)))
+
+(define ($string-indexof x y)
+  (match* (x y)
+	  [((? string?) (? string?)) (string-indexof x y)]
+	  [(_ _) (expression @string-indexof x y)]))
+
+(define-lifted-operator @string-indexof $string-indexof T*->integer?)
 
 ;; ----------------- String Conversions ----------------- ;;
 
